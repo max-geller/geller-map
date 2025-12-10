@@ -1,11 +1,12 @@
 import {
   Component,
+  DestroyRef,
   ElementRef,
-  HostListener,
   computed,
   inject,
   signal,
   viewChild,
+  afterNextRender,
 } from '@angular/core';
 import { MindMapStore } from '../../store/mind-map.store';
 import { NodeComponent } from '../node/node.component';
@@ -24,7 +25,6 @@ import { ConnectionLayerComponent } from './connection-layer.component';
       (mouseup)="onMouseUp($event)"
       (mouseleave)="onMouseUp($event)"
       (wheel)="onWheel($event)"
-      (click)="onCanvasClick($event)"
     >
       <div class="canvas-layer" [style.transform]="transformStyle()">
         <app-connection-layer />
@@ -67,12 +67,16 @@ import { ConnectionLayerComponent } from './connection-layer.component';
       background-color: var(--canvas-bg);
       background-image: radial-gradient(circle, #ccc 1px, transparent 1px);
       background-size: 20px 20px;
-      cursor: grab;
+      cursor: default;
       position: relative;
       overflow: hidden;
 
+      &.space-held {
+        cursor: grab !important;
+      }
+
       &.panning {
-        cursor: grabbing;
+        cursor: grabbing !important;
       }
     }
 
@@ -129,11 +133,14 @@ import { ConnectionLayerComponent } from './connection-layer.component';
 })
 export class CanvasComponent {
   readonly store = inject(MindMapStore);
+  private destroyRef = inject(DestroyRef);
 
   private canvasContainer = viewChild<ElementRef<HTMLDivElement>>('canvasContainer');
 
-  private isPanning = signal(false);
-  private lastMousePos = signal({ x: 0, y: 0 });
+  // Internal state
+  private isPanning = false;
+  private isSpaceHeld = false;
+  private lastMousePos = { x: 0, y: 0 };
 
   readonly transformStyle = computed(() => {
     const view = this.store.view();
@@ -142,33 +149,171 @@ export class CanvasComponent {
 
   readonly zoomPercentage = computed(() => Math.round(this.store.view().scale * 100));
 
-  onMouseDown(event: MouseEvent): void {
-    // Only pan with middle mouse button or when not clicking on a node
-    if (event.button === 1 || (event.button === 0 && event.target === event.currentTarget)) {
-      this.isPanning.set(true);
-      this.lastMousePos.set({ x: event.clientX, y: event.clientY });
-      this.canvasContainer()?.nativeElement.classList.add('panning');
+  constructor() {
+    // Set up keyboard listeners after render
+    afterNextRender(() => {
+      this.setupKeyboardListeners();
+    });
+  }
+
+  private setupKeyboardListeners(): void {
+    const onKeyDown = (event: KeyboardEvent) => {
+      this.handleKeyDown(event);
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      this.handleKeyUp(event);
+    };
+
+    const onWindowBlur = () => {
+      this.resetPanState();
+    };
+
+    // Prevent middle-click auto-scroll
+    const onAuxClick = (event: MouseEvent) => {
+      if (event.button === 1) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+    document.addEventListener('auxclick', onAuxClick);
+    window.addEventListener('blur', onWindowBlur);
+
+    // Clean up on destroy
+    this.destroyRef.onDestroy(() => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('auxclick', onAuxClick);
+      window.removeEventListener('blur', onWindowBlur);
+    });
+  }
+
+  private handleKeyDown(event: KeyboardEvent): void {
+    // Handle spacebar for pan mode
+    if (event.code === 'Space' && !this.isSpaceHeld) {
+      const target = event.target as HTMLElement;
+      if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+        event.preventDefault();
+        this.isSpaceHeld = true;
+        this.updateCursor();
+      }
+      return;
+    }
+
+    const selectedId = this.store.selectedNodeId();
+
+    // Don't handle other shortcuts when editing
+    if (this.store.editingNodeId()) return;
+
+    // Undo/Redo work without selection
+    if (event.key === 'z' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
+      if (event.shiftKey) {
+        this.store.redo();
+      } else {
+        this.store.undo();
+      }
+      return;
+    }
+
+    if (event.key === 'y' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      this.store.redo();
+      return;
+    }
+
+    // Following shortcuts require a selected node
+    if (!selectedId) return;
+
+    switch (event.key) {
+      case 'Tab':
+        event.preventDefault();
+        this.addChildNode(selectedId);
+        break;
+      case 'Enter':
+        event.preventDefault();
+        this.addSiblingNode(selectedId);
+        break;
+      case 'Delete':
+      case 'Backspace':
+        event.preventDefault();
+        this.store.deleteNode(selectedId);
+        break;
+      case 'F2':
+        event.preventDefault();
+        this.store.startEditing(selectedId);
+        break;
+    }
+  }
+
+  private handleKeyUp(event: KeyboardEvent): void {
+    if (event.code === 'Space') {
+      this.isSpaceHeld = false;
+      if (this.isPanning) {
+        this.isPanning = false;
+      }
+      this.updateCursor();
+    }
+  }
+
+  private resetPanState(): void {
+    this.isSpaceHeld = false;
+    this.isPanning = false;
+    this.updateCursor();
+  }
+
+  private updateCursor(): void {
+    const container = this.canvasContainer()?.nativeElement;
+    if (!container) return;
+
+    container.classList.toggle('space-held', this.isSpaceHeld);
+    container.classList.toggle('panning', this.isPanning);
+  }
+
+  onMouseDown(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    const isOnNode = target.closest('.node') !== null;
+
+    // Pan with: middle mouse button (1), spacebar + left click, or left click NOT on a node
+    const canPan =
+      event.button === 1 ||
+      (event.button === 0 && this.isSpaceHeld) ||
+      (event.button === 0 && !isOnNode);
+
+    if (canPan) {
+      this.isPanning = true;
+      this.lastMousePos = { x: event.clientX, y: event.clientY };
+      this.updateCursor();
+      event.preventDefault();
+
+      // Deselect node when clicking on empty canvas (but not when space-panning or middle-click)
+      if (!this.isSpaceHeld && !isOnNode && event.button === 0) {
+        this.store.selectNode(null);
+      }
     }
   }
 
   onMouseMove(event: MouseEvent): void {
-    if (!this.isPanning()) return;
+    if (!this.isPanning) return;
 
-    const dx = event.clientX - this.lastMousePos().x;
-    const dy = event.clientY - this.lastMousePos().y;
+    const dx = event.clientX - this.lastMousePos.x;
+    const dy = event.clientY - this.lastMousePos.y;
 
     this.store.updateView({
       panX: this.store.view().panX + dx,
       panY: this.store.view().panY + dy,
     });
 
-    this.lastMousePos.set({ x: event.clientX, y: event.clientY });
+    this.lastMousePos = { x: event.clientX, y: event.clientY };
   }
 
   onMouseUp(event: MouseEvent): void {
-    this.isPanning.set(false);
-    this.canvasContainer()?.nativeElement.classList.remove('panning');
+    if (this.isPanning) {
+      this.isPanning = false;
+      this.updateCursor();
+    }
   }
 
   onWheel(event: WheelEvent): void {
@@ -197,13 +342,6 @@ export class CanvasComponent {
     });
   }
 
-  onCanvasClick(event: MouseEvent): void {
-    // Deselect when clicking on empty canvas
-    if (event.target === event.currentTarget) {
-      this.store.selectNode(null);
-    }
-  }
-
   onNodeClick(nodeId: string): void {
     this.store.selectNode(nodeId);
   }
@@ -213,7 +351,6 @@ export class CanvasComponent {
   }
 
   onNodePositionChange(event: { nodeId: string; position: { x: number; y: number } }): void {
-    // Use the new setNodeOffset method which calculates offset from computed position
     this.store.setNodeOffset(event.nodeId, event.position);
   }
 
@@ -226,51 +363,6 @@ export class CanvasComponent {
     this.store.deleteNode(nodeId);
   }
 
-  @HostListener('document:keydown', ['$event'])
-  onKeyDown(event: KeyboardEvent): void {
-    const selectedId = this.store.selectedNodeId();
-    if (!selectedId) return;
-
-    // Don't handle shortcuts when editing
-    if (this.store.editingNodeId()) return;
-
-    switch (event.key) {
-      case 'Tab':
-        event.preventDefault();
-        this.addChildNode(selectedId);
-        break;
-      case 'Enter':
-        event.preventDefault();
-        this.addSiblingNode(selectedId);
-        break;
-      case 'Delete':
-      case 'Backspace':
-        event.preventDefault();
-        this.store.deleteNode(selectedId);
-        break;
-      case 'F2':
-        event.preventDefault();
-        this.store.startEditing(selectedId);
-        break;
-      case 'z':
-        if (event.ctrlKey || event.metaKey) {
-          event.preventDefault();
-          if (event.shiftKey) {
-            this.store.redo();
-          } else {
-            this.store.undo();
-          }
-        }
-        break;
-      case 'y':
-        if (event.ctrlKey || event.metaKey) {
-          event.preventDefault();
-          this.store.redo();
-        }
-        break;
-    }
-  }
-
   addChildNode(parentId: string): void {
     const parent = this.store.nodes()[parentId];
     if (!parent) return;
@@ -280,7 +372,6 @@ export class CanvasComponent {
 
     const childCount = parent.childrenIds.length;
 
-    // New nodes don't need position - it's computed automatically
     const newNode = {
       id: this.store.generateId(),
       userId: parent.userId,
@@ -300,14 +391,13 @@ export class CanvasComponent {
 
   addSiblingNode(nodeId: string): void {
     const node = this.store.nodes()[nodeId];
-    if (!node || !node.parentId) return; // Can't add sibling to root
+    if (!node || !node.parentId) return;
 
     const parent = this.store.nodes()[node.parentId];
     if (!parent) return;
 
     const siblingCount = parent.childrenIds.length;
 
-    // New nodes don't need position - it's computed automatically
     const newNode = {
       id: this.store.generateId(),
       userId: node.userId,
