@@ -65,7 +65,7 @@ import { ConnectionLayerComponent } from './connection-layer.component';
       width: 100%;
       height: 100%;
       background-color: var(--canvas-bg);
-      background-image: radial-gradient(circle, #ccc 1px, transparent 1px);
+      background-image: radial-gradient(circle, var(--grid-dot-color) 1px, transparent 1px);
       background-size: 20px 20px;
       cursor: default;
       position: relative;
