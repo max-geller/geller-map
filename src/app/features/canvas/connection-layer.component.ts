@@ -10,6 +10,13 @@ interface Connection {
   hasCustomColor: boolean;
 }
 
+type AnchorEdge = 'left' | 'right' | 'top' | 'bottom';
+
+interface AnchorPoints {
+  parentAnchor: AnchorEdge;
+  childAnchor: AnchorEdge;
+}
+
 @Component({
   selector: 'app-connection-layer',
   standalone: true,
@@ -114,29 +121,100 @@ export class ConnectionLayerComponent {
     return connections;
   });
 
-  private createBezierPath(parentPos: Position, childPos: Position): string {
+  /**
+   * Determine which edges to use for anchoring based on relative positions.
+   * Uses the dominant axis (whichever has larger difference).
+   */
+  private getAnchorEdges(parentPos: Position, childPos: Position): AnchorPoints {
     const nodeWidth = LAYOUT_CONSTANTS.NODE_WIDTH;
     const nodeHeight = LAYOUT_CONSTANTS.NODE_HEIGHT;
 
-    // Add offset to handle negative coordinates in SVG
+    const parentCenterX = parentPos.x + nodeWidth / 2;
+    const parentCenterY = parentPos.y + nodeHeight / 2;
+    const childCenterX = childPos.x + nodeWidth / 2;
+    const childCenterY = childPos.y + nodeHeight / 2;
+
+    const dx = childCenterX - parentCenterX;
+    const dy = childCenterY - parentCenterY;
+
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      // Horizontal dominant
+      return dx >= 0
+        ? { parentAnchor: 'right', childAnchor: 'left' }
+        : { parentAnchor: 'left', childAnchor: 'right' };
+    } else {
+      // Vertical dominant
+      return dy >= 0
+        ? { parentAnchor: 'bottom', childAnchor: 'top' }
+        : { parentAnchor: 'top', childAnchor: 'bottom' };
+    }
+  }
+
+  /**
+   * Get the anchor point coordinates for a given edge of a node.
+   */
+  private getAnchorPoint(pos: Position, edge: AnchorEdge): Position {
+    const w = LAYOUT_CONSTANTS.NODE_WIDTH;
+    const h = LAYOUT_CONSTANTS.NODE_HEIGHT;
+
+    switch (edge) {
+      case 'right':
+        return { x: pos.x + w, y: pos.y + h / 2 };
+      case 'left':
+        return { x: pos.x, y: pos.y + h / 2 };
+      case 'top':
+        return { x: pos.x + w / 2, y: pos.y };
+      case 'bottom':
+        return { x: pos.x + w / 2, y: pos.y + h };
+    }
+  }
+
+  /**
+   * Get the control point offset direction for a given anchor edge.
+   * Returns a unit vector indicating which direction the control point should extend.
+   */
+  private getControlDirection(edge: AnchorEdge): { dx: number; dy: number } {
+    switch (edge) {
+      case 'right':
+        return { dx: 1, dy: 0 };
+      case 'left':
+        return { dx: -1, dy: 0 };
+      case 'top':
+        return { dx: 0, dy: -1 };
+      case 'bottom':
+        return { dx: 0, dy: 1 };
+    }
+  }
+
+  private createBezierPath(parentPos: Position, childPos: Position): string {
     const offset = this.SVG_OFFSET;
 
-    // Start point: right edge of parent, vertically centered
-    const startX = parentPos.x + nodeWidth + offset;
-    const startY = parentPos.y + nodeHeight / 2 + offset;
+    // Determine anchor edges based on relative position
+    const { parentAnchor, childAnchor } = this.getAnchorEdges(parentPos, childPos);
 
-    // End point: left edge of child, vertically centered
-    const endX = childPos.x + offset;
-    const endY = childPos.y + nodeHeight / 2 + offset;
+    // Get anchor points
+    const startPoint = this.getAnchorPoint(parentPos, parentAnchor);
+    const endPoint = this.getAnchorPoint(childPos, childAnchor);
 
-    // Calculate control points for smooth bezier curve
-    const dx = endX - startX;
-    const controlOffset = Math.max(Math.abs(dx) * 0.4, 40);
+    // Apply SVG offset
+    const startX = startPoint.x + offset;
+    const startY = startPoint.y + offset;
+    const endX = endPoint.x + offset;
+    const endY = endPoint.y + offset;
 
-    const cp1X = startX + controlOffset;
-    const cp1Y = startY;
-    const cp2X = endX - controlOffset;
-    const cp2Y = endY;
+    // Calculate control point offset based on distance
+    const distance = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+    const controlOffset = Math.max(distance * 0.4, 40);
+
+    // Get control point directions
+    const startDir = this.getControlDirection(parentAnchor);
+    const endDir = this.getControlDirection(childAnchor);
+
+    // Calculate control points
+    const cp1X = startX + startDir.dx * controlOffset;
+    const cp1Y = startY + startDir.dy * controlOffset;
+    const cp2X = endX + endDir.dx * controlOffset;
+    const cp2Y = endY + endDir.dy * controlOffset;
 
     return `M ${startX} ${startY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${endX} ${endY}`;
   }
