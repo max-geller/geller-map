@@ -67,6 +67,7 @@ import { MindMapStore } from '../../store/mind-map.store';
           mat-mini-fab
           color="primary"
           matTooltip="Add child (Tab)"
+          (mousedown)="$event.stopPropagation()"
           (click)="onAddChild($event)"
         >
           <mat-icon>add</mat-icon>
@@ -80,6 +81,7 @@ import { MindMapStore } from '../../store/mind-map.store';
           mat-mini-fab
           color="accent"
           matTooltip="Add sibling (Enter)"
+          (mousedown)="$event.stopPropagation()"
           (click)="onAddSibling($event)"
         >
           <mat-icon>add</mat-icon>
@@ -93,6 +95,7 @@ import { MindMapStore } from '../../store/mind-map.store';
           mat-mini-fab
           color="warn"
           matTooltip="Delete (Del)"
+          (mousedown)="$event.stopPropagation()"
           (click)="onDelete($event)"
         >
           <mat-icon>delete</mat-icon>
@@ -105,6 +108,7 @@ import { MindMapStore } from '../../store/mind-map.store';
           class="action-btn edit-btn"
           mat-mini-fab
           matTooltip="Rename (F2 or double-click)"
+          (mousedown)="$event.stopPropagation()"
           (click)="onEdit($event)"
         >
           <mat-icon>edit</mat-icon>
