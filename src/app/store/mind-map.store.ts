@@ -42,7 +42,11 @@ export class MindMapStore {
   private _mapDirty = signal(false);
 
   // Drag state for live connection updates during node dragging
-  private _draggingState = signal<{ nodeId: string; delta: Position } | null>(null);
+  private _draggingState = signal<{
+    nodeId: string;
+    delta: Position;
+    descendantIds: string[]; // All descendants of the dragged node
+  } | null>(null);
   readonly draggingState = this._draggingState.asReadonly();
 
   // Public readonly signals
@@ -223,7 +227,7 @@ export class MindMapStore {
   /**
    * Set the dragging state for live connection updates
    */
-  setDraggingState(state: { nodeId: string; delta: Position } | null): void {
+  setDraggingState(state: { nodeId: string; delta: Position; descendantIds: string[] } | null): void {
     this._draggingState.set(state);
   }
 
@@ -622,6 +626,13 @@ export class MindMapStore {
       descendants.push(...this.getDescendantIds(childId, nodes));
     });
     return descendants;
+  }
+
+  /**
+   * Public method to get all descendant IDs of a node
+   */
+  getDescendantIdsPublic(nodeId: string): string[] {
+    return this.getDescendantIds(nodeId, this._state().nodes);
   }
 
   private revertAction(action: MindMapAction): void {

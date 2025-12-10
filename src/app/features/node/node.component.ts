@@ -302,9 +302,19 @@ export class NodeComponent {
     this.nodeDblClick.emit(this.node().id);
   }
 
+  // Cache descendants during drag to avoid recomputing on every move
+  private dragDescendantIds: string[] = [];
+
   onDragStarted(): void {
+    // Compute descendants once at drag start
+    this.dragDescendantIds = this.store.getDescendantIdsPublic(this.node().id);
+    
     // Initialize drag state for live connection updates
-    this.store.setDraggingState({ nodeId: this.node().id, delta: { x: 0, y: 0 } });
+    this.store.setDraggingState({
+      nodeId: this.node().id,
+      delta: { x: 0, y: 0 },
+      descendantIds: this.dragDescendantIds,
+    });
   }
 
   onDragMoved(event: CdkDragMove): void {
@@ -312,6 +322,7 @@ export class NodeComponent {
     this.store.setDraggingState({
       nodeId: this.node().id,
       delta: event.distance,
+      descendantIds: this.dragDescendantIds,
     });
   }
 

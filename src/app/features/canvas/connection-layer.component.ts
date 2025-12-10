@@ -360,6 +360,11 @@ export class ConnectionLayerComponent {
     const nodesArray = Object.values(nodes);
     const connections: Connection[] = [];
 
+    // Create a set of all nodes that are moving (dragged node + all descendants)
+    const movingNodeIds = dragging
+      ? new Set([dragging.nodeId, ...dragging.descendantIds])
+      : new Set<string>();
+
     nodesArray.forEach((node) => {
       if (node.parentId) {
         let parentPos = positions[node.parentId];
@@ -367,14 +372,15 @@ export class ConnectionLayerComponent {
 
         if (parentPos && childPos) {
           // Apply drag delta for live connection updates during drag
+          // Apply to ANY node in the moving group (dragged + descendants)
           if (dragging) {
-            if (node.id === dragging.nodeId) {
+            if (movingNodeIds.has(node.id)) {
               childPos = {
                 x: childPos.x + dragging.delta.x,
                 y: childPos.y + dragging.delta.y,
               };
             }
-            if (node.parentId === dragging.nodeId) {
+            if (movingNodeIds.has(node.parentId)) {
               parentPos = {
                 x: parentPos.x + dragging.delta.x,
                 y: parentPos.y + dragging.delta.y,
