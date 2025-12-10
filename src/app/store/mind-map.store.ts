@@ -276,20 +276,53 @@ export class MindMapStore {
 
   /**
    * Set manual offset for a node (when user drags it)
+   * Also moves all descendant nodes by the same delta to maintain relationships
    */
   setNodeOffset(nodeId: string, newPosition: Position, skipHistory = false): void {
     const node = this._state().nodes[nodeId];
     if (!node) return;
 
     const computedPos = this.computedLayout()[nodeId];
-    const newOffset = this.layoutService.calculateOffset(
-      computedPos || { x: 0, y: 0 },
-      newPosition
-    );
+    const currentFinalPos = this.nodePositions()[nodeId];
+    
+    // Calculate delta from current position to new position
+    const delta = {
+      x: newPosition.x - currentFinalPos.x,
+      y: newPosition.y - currentFinalPos.y,
+    };
+
+    // Get all descendant IDs
+    const descendantIds = this.getDescendantIds(nodeId, this._state().nodes);
 
     this._state.update((state) => {
+      const newNodes = { ...state.nodes };
+      const oldOffsets: Record<string, Position | undefined> = {};
+      const newOffsets: Record<string, Position> = {};
+
+      // Update the dragged node
       const currentNode = state.nodes[nodeId];
-      const oldOffset = currentNode.manualOffset;
+      oldOffsets[nodeId] = currentNode.manualOffset;
+      const newOffset = this.layoutService.calculateOffset(
+        computedPos || { x: 0, y: 0 },
+        newPosition
+      );
+      newOffsets[nodeId] = newOffset;
+      newNodes[nodeId] = { ...currentNode, manualOffset: newOffset, updatedAt: new Date() };
+
+      // Update all descendants - apply same delta
+      for (const descId of descendantIds) {
+        const descNode = state.nodes[descId];
+        if (!descNode) continue;
+
+        oldOffsets[descId] = descNode.manualOffset;
+        const descCurrentOffset = descNode.manualOffset || { x: 0, y: 0 };
+        const descNewOffset = {
+          x: descCurrentOffset.x + delta.x,
+          y: descCurrentOffset.y + delta.y,
+        };
+        newOffsets[descId] = descNewOffset;
+        newNodes[descId] = { ...descNode, manualOffset: descNewOffset, updatedAt: new Date() };
+      }
 
       const newHistory = skipHistory
         ? state.history
@@ -299,8 +332,10 @@ export class MindMapStore {
               {
                 type: 'SET_OFFSET' as const,
                 nodeId,
-                from: oldOffset,
-                to: newOffset,
+                from: oldOffsets[nodeId],
+                to: newOffsets[nodeId],
+                // Store descendant offsets for proper undo
+                descendantOffsets: descendantIds.length > 0 ? { old: oldOffsets, new: newOffsets } : undefined,
               },
             ],
             future: [],
@@ -308,10 +343,7 @@ export class MindMapStore {
 
       return {
         ...state,
-        nodes: {
-          ...state.nodes,
-          [nodeId]: { ...currentNode, manualOffset: newOffset, updatedAt: new Date() },
-        },
+        nodes: newNodes, // Use the newNodes object that includes ALL updated nodes
         history: newHistory,
       };
     });
@@ -443,7 +475,12 @@ export class MindMapStore {
         this.addNode(action.node, true);
         break;
       case 'SET_OFFSET':
-        this.setOffsetDirect(action.nodeId, action.from);
+        // Restore old offsets for the node and all descendants
+        if (action.descendantOffsets) {
+          this.setOffsetsMultiple(action.descendantOffsets.old);
+        } else {
+          this.setOffsetDirect(action.nodeId, action.from);
+        }
         break;
       case 'UPDATE_NODE':
         this.updateNode(action.nodeId, action.before as Partial<MindMapNode>, true);
@@ -460,7 +497,12 @@ export class MindMapStore {
         this.deleteNode(action.node.id, true);
         break;
       case 'SET_OFFSET':
-        this.setOffsetDirect(action.nodeId, action.to);
+        // Apply new offsets for the node and all descendants
+        if (action.descendantOffsets) {
+          this.setOffsetsMultiple(action.descendantOffsets.new);
+        } else {
+          this.setOffsetDirect(action.nodeId, action.to);
+        }
         break;
       case 'UPDATE_NODE':
         this.updateNode(action.nodeId, action.after as Partial<MindMapNode>, true);
@@ -482,6 +524,27 @@ export class MindMapStore {
           ...state.nodes,
           [nodeId]: { ...node, manualOffset: offset },
         },
+      };
+    });
+  }
+
+  /**
+   * Set offsets for multiple nodes at once (for undo/redo of group moves)
+   */
+  private setOffsetsMultiple(offsets: Record<string, Position | undefined>): void {
+    this._state.update((state) => {
+      const newNodes = { ...state.nodes };
+
+      for (const [nodeId, offset] of Object.entries(offsets)) {
+        const node = newNodes[nodeId];
+        if (node) {
+          newNodes[nodeId] = { ...node, manualOffset: offset };
+        }
+      }
+
+      return {
+        ...state,
+        nodes: newNodes,
       };
     });
   }

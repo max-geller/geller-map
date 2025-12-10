@@ -63,7 +63,17 @@ export interface NodeAttachment {
 export type MindMapAction =
   | { type: 'ADD_NODE'; node: MindMapNode }
   | { type: 'DELETE_NODE'; node: MindMapNode; parentId: string | null }
-  | { type: 'SET_OFFSET'; nodeId: string; from: Position | undefined; to: Position | undefined }
+  | {
+      type: 'SET_OFFSET';
+      nodeId: string;
+      from: Position | undefined;
+      to: Position | undefined;
+      // For group moves, stores all affected node offsets
+      descendantOffsets?: {
+        old: Record<string, Position | undefined>;
+        new: Record<string, Position>;
+      };
+    }
   | { type: 'UPDATE_NODE'; nodeId: string; before: Partial<MindMapNode>; after: Partial<MindMapNode> }
   | { type: 'REPARENT_NODE'; nodeId: string; fromParentId: string | null; toParentId: string | null };
 
