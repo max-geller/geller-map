@@ -1,59 +1,91 @@
-# GellerMap
+# Geller Map
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.9.
+A modern, collaborative mind-mapping application built with Angular 20 and Material Design 3.
 
-## Development server
+## Features
 
-To start a local development server, run:
+- **Infinite Canvas**: Pan and zoom with smooth controls
+- **Drag & Drop Nodes**: Intuitive node positioning
+- **Keyboard Shortcuts**: Tab (new child), Enter (new sibling), Delete, Ctrl+Z (undo)
+- **Material Design 3**: Beautiful, modern UI with dark mode support
+- **Cloud Sync**: Data persisted to Firebase Firestore
+- **Google Authentication**: Secure sign-in with Google
 
-```bash
-ng serve
-```
+## Getting Started
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+### Prerequisites
 
-## Code scaffolding
+- Node.js 18+
+- npm 9+
+- Firebase account
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+### Firebase Setup
 
-```bash
-ng generate component component-name
-```
+1. Go to the [Firebase Console](https://console.firebase.google.com/project/geller-map)
+2. Enable **Authentication**:
+   - Navigate to Authentication > Sign-in method
+   - Enable **Google** as a sign-in provider
+   - Add your domain to authorized domains (for local dev, add `localhost`)
+3. Enable **Firestore Database** (already done if you ran `firebase init`)
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+### Installation
 
 ```bash
-ng test
+# Install dependencies
+npm install
+
+# Start development server
+npm start
+
+# Build for production
+npm run build
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+### Running Locally
 
 ```bash
-ng e2e
+npm start
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Open [http://localhost:4200](http://localhost:4200) in your browser.
 
-## Additional Resources
+## Keyboard Shortcuts
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+| Key | Action |
+|-----|--------|
+| Tab | Add child node |
+| Enter | Add sibling node |
+| Delete/Backspace | Delete selected node |
+| F2 | Edit selected node |
+| Ctrl+Z | Undo |
+| Ctrl+Y / Ctrl+Shift+Z | Redo |
+| Mouse wheel | Zoom in/out |
+| Click + Drag (on canvas) | Pan |
+
+## Project Structure
+
+```
+src/app/
+├── core/
+│   ├── guards/        # Route guards
+│   ├── models/        # TypeScript interfaces
+│   └── services/      # Core services (Auth, DB, MindMap)
+├── features/
+│   ├── auth/          # Login page
+│   ├── canvas/        # Canvas & connection components
+│   ├── dashboard/     # Map list page
+│   ├── editor/        # Map editor page
+│   └── node/          # Node component
+└── store/             # MindMapStore (Signal-based state)
+```
+
+## Technologies
+
+- **Angular 20** with Zoneless change detection
+- **Angular Material 20** with Material Design 3
+- **Firebase** (Firestore + Authentication)
+- **Angular CDK** for drag & drop
+
+## License
+
+Private - All rights reserved.

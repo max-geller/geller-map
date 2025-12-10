@@ -1,1 +1,98 @@
-/* You can add global styles to this file, and also import other style files */
+@use '@angular/material' as mat;
+
+// Define the M3 theme with Indigo/Violet palette
+$geller-map-theme: mat.define-theme(
+  (
+    color: (
+      theme-type: light,
+      primary: mat.$violet-palette,
+      tertiary: mat.$cyan-palette,
+    ),
+    typography: (
+      brand-family: 'Roboto, sans-serif',
+      plain-family: 'Roboto, sans-serif',
+    ),
+    density: (
+      scale: 0,
+    ),
+  )
+);
+
+$geller-map-dark-theme: mat.define-theme(
+  (
+    color: (
+      theme-type: dark,
+      primary: mat.$violet-palette,
+      tertiary: mat.$cyan-palette,
+    ),
+    typography: (
+      brand-family: 'Roboto, sans-serif',
+      plain-family: 'Roboto, sans-serif',
+    ),
+    density: (
+      scale: 0,
+    ),
+  )
+);
+
+// Apply the theme
+html {
+  @include mat.all-component-themes($geller-map-theme);
+  @include mat.typography-hierarchy($geller-map-theme);
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  html {
+    @include mat.all-component-colors($geller-map-dark-theme);
+  }
+}
+
+// Global styles
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--mat-app-background-color);
+  color: var(--mat-app-text-color);
+}
+
+// Custom CSS variables for the app
+:root {
+  // Canvas colors
+  --canvas-bg: #f5f5f5;
+  --node-bg: #ffffff;
+  --node-border: #e0e0e0;
+  --node-shadow: rgba(0, 0, 0, 0.1);
+  --connection-color: #9575cd;
+  --selection-color: #7c4dff;
+
+  // Layout constants (should match LAYOUT_CONSTANTS in layout.service.ts)
+  --node-width: 150px;
+  --node-height: 48px;
+  --node-spacing-x: 250px;
+  --node-spacing-y: 70px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas-bg: #1e1e1e;
+    --node-bg: #2d2d2d;
+    --node-border: #404040;
+    --node-shadow: rgba(0, 0, 0, 0.3);
+    --connection-color: #b39ddb;
+    --selection-color: #b388ff;
+  }
+}
