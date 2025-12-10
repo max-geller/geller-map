@@ -46,6 +46,9 @@ export interface NodeStyle {
   shape?: 'rounded' | 'square' | 'circle';
   fontFamily?: string;
   icon?: string;
+  // Connection line styling (applies to incoming connection from parent)
+  connectionColor?: string; // Override connection color (defaults to node color)
+  connectionDashed?: boolean; // Use dashed line style
 }
 
 export interface NodeTask {

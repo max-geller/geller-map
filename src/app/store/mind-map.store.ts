@@ -378,6 +378,41 @@ export class MindMapStore {
   }
 
   /**
+   * Update connection style for a node's incoming connection (from parent)
+   */
+  updateConnectionStyle(
+    nodeId: string,
+    style: { connectionColor?: string; connectionDashed?: boolean }
+  ): void {
+    const node = this._state().nodes[nodeId];
+    if (!node) return;
+
+    const currentStyle = node.style || {};
+    const newStyle = { ...currentStyle };
+
+    // Update or remove connectionColor
+    if (style.connectionColor !== undefined) {
+      if (style.connectionColor === undefined || style.connectionColor === null) {
+        delete newStyle.connectionColor;
+      } else {
+        newStyle.connectionColor = style.connectionColor;
+      }
+    }
+
+    // Update connectionDashed
+    if (style.connectionDashed !== undefined) {
+      if (style.connectionDashed === false) {
+        delete newStyle.connectionDashed;
+      } else {
+        newStyle.connectionDashed = style.connectionDashed;
+      }
+    }
+
+    this.updateNode(nodeId, { style: newStyle });
+    this.markMapDirty(); // Preview needs update for connection colors
+  }
+
+  /**
    * Set manual offset for a node (when user drags it)
    * Also moves all descendant nodes by the same delta to maintain relationships
    */
