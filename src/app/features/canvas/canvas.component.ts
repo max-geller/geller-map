@@ -372,7 +372,8 @@ export class CanvasComponent {
 
     const childCount = parent.childrenIds.length;
 
-    const newNode = {
+    // Inherit parent's manual offset so the child appears relative to the parent's visual position
+    const newNode: Parameters<typeof this.store.addNode>[0] = {
       id: this.store.generateId(),
       userId: parent.userId,
       mapId: parent.mapId,
@@ -384,6 +385,11 @@ export class CanvasComponent {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    // Copy parent's manual offset if it exists
+    if (parent.manualOffset) {
+      newNode.manualOffset = { ...parent.manualOffset };
+    }
 
     this.store.addNode(newNode);
     this.store.startEditing(newNode.id);
@@ -398,7 +404,8 @@ export class CanvasComponent {
 
     const siblingCount = parent.childrenIds.length;
 
-    const newNode = {
+    // Inherit parent's manual offset so the sibling appears relative to the parent's visual position
+    const newNode: Parameters<typeof this.store.addNode>[0] = {
       id: this.store.generateId(),
       userId: node.userId,
       mapId: node.mapId,
@@ -410,6 +417,11 @@ export class CanvasComponent {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    // Copy parent's manual offset if it exists
+    if (parent.manualOffset) {
+      newNode.manualOffset = { ...parent.manualOffset };
+    }
 
     this.store.addNode(newNode);
     this.store.startEditing(newNode.id);
