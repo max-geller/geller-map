@@ -98,6 +98,18 @@ import { MindMapStore } from '../../store/mind-map.store';
           <mat-icon>delete</mat-icon>
         </button>
       }
+
+      <!-- Edit/Rename button -->
+      @if (isSelected() && !isEditing()) {
+        <button
+          class="action-btn edit-btn"
+          mat-mini-fab
+          matTooltip="Rename (F2 or double-click)"
+          (click)="onEdit($event)"
+        >
+          <mat-icon>edit</mat-icon>
+        </button>
+      }
     </div>
   `,
   styles: `
@@ -206,12 +218,25 @@ import { MindMapStore } from '../../store/mind-map.store';
 
     .delete-btn {
       top: -44px;
-      left: 50%;
-      transform: translateX(-50%) scale(0.75);
+      right: 4px;
+      transform: scale(0.75);
       opacity: 0.85;
 
       &:hover {
-        transform: translateX(-50%) scale(0.85);
+        transform: scale(0.85);
+        opacity: 1;
+      }
+    }
+
+    .edit-btn {
+      top: -44px;
+      left: 4px;
+      transform: scale(0.75);
+      opacity: 0.85;
+      background-color: #616161 !important;
+
+      &:hover {
+        transform: scale(0.85);
         opacity: 1;
       }
     }
@@ -338,5 +363,10 @@ export class NodeComponent {
   onDelete(event: MouseEvent): void {
     event.stopPropagation();
     this.deleteRequest.emit(this.node().id);
+  }
+
+  onEdit(event: MouseEvent): void {
+    event.stopPropagation();
+    this.nodeDblClick.emit(this.node().id);
   }
 }

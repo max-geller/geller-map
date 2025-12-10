@@ -7,6 +7,7 @@ interface Connection {
   id: string;
   path: string;
   color: string;
+  hasCustomColor: boolean;
 }
 
 @Component({
@@ -14,13 +15,41 @@ interface Connection {
   standalone: true,
   template: `
     <svg class="connections-svg">
+      <!-- Arrow marker definition -->
+      <defs>
+        <marker
+          id="arrowhead"
+          markerWidth="10"
+          markerHeight="7"
+          refX="9"
+          refY="3.5"
+          orient="auto"
+          markerUnits="strokeWidth"
+        >
+          <polygon points="0 0, 10 3.5, 0 7" fill="var(--connection-color)" />
+        </marker>
+        <marker
+          id="arrowhead-custom"
+          markerWidth="10"
+          markerHeight="7"
+          refX="9"
+          refY="3.5"
+          orient="auto"
+          markerUnits="strokeWidth"
+        >
+          <polygon points="0 0, 10 3.5, 0 7" fill="currentColor" />
+        </marker>
+      </defs>
+
       @for (connection of connections(); track connection.id) {
         <path
           [attr.d]="connection.path"
           [attr.stroke]="connection.color"
+          [style.color]="connection.color"
           fill="none"
           stroke-width="2"
           stroke-linecap="round"
+          [attr.marker-end]="connection.hasCustomColor ? 'url(#arrowhead-custom)' : 'url(#arrowhead)'"
         />
       }
     </svg>
@@ -71,10 +100,12 @@ export class ConnectionLayerComponent {
         const childPos = positions[node.id];
 
         if (parentPos && childPos) {
+          const customColor = node.style?.color;
           connections.push({
             id: `${node.parentId}-${node.id}`,
             path: this.createBezierPath(parentPos, childPos),
-            color: node.style?.color || 'var(--connection-color)',
+            color: customColor || 'var(--connection-color)',
+            hasCustomColor: !!customColor,
           });
         }
       }
