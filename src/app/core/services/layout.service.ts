@@ -20,7 +20,7 @@ export class LayoutService {
   /**
    * Compute positions for all nodes based on tree structure.
    * Uses a horizontal tree layout:
-   * - Root at (0, 0)
+   * - Root centered at (0, 0) for easy canvas centering
    * - Children positioned to the right
    * - Siblings spaced vertically
    */
@@ -31,6 +31,22 @@ export class LayoutService {
 
     const layout: ComputedLayout = {};
     this.layoutNode(nodes, rootId, 0, 0, layout);
+
+    // Offset all positions so the root node's CENTER is at (0, 0)
+    // This makes centering on the canvas trivial (panX=0, panY=0)
+    const rootPos = layout[rootId];
+    if (rootPos) {
+      const offsetX = rootPos.x + LAYOUT_CONSTANTS.NODE_WIDTH / 2;
+      const offsetY = rootPos.y + LAYOUT_CONSTANTS.NODE_HEIGHT / 2;
+
+      for (const nodeId of Object.keys(layout)) {
+        layout[nodeId] = {
+          x: layout[nodeId].x - offsetX,
+          y: layout[nodeId].y - offsetY,
+        };
+      }
+    }
+
     return layout;
   }
 
