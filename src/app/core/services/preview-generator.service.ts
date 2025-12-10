@@ -117,8 +117,13 @@ export class PreviewGeneratorService {
           const midX = (startX + endX) / 2;
           const path = `M ${startX} ${startY} Q ${midX} ${startY}, ${midX} ${(startY + endY) / 2} T ${endX} ${endY}`;
 
+          // Use connection-specific color, fall back to node color, then default
+          const strokeColor = node.style?.connectionColor || node.style?.color || 'var(--connection-color, #b39ddb)';
+          const isDashed = node.style?.connectionDashed ?? false;
+          const dashArray = isDashed ? 'stroke-dasharray="4 2"' : '';
+
           paths.push(
-            `<path d="${path}" stroke="var(--connection-color, #b39ddb)" stroke-width="1.5" fill="none" opacity="0.8"/>`
+            `<path d="${path}" stroke="${strokeColor}" stroke-width="1.5" fill="none" opacity="0.8" ${dashArray}/>`
           );
         }
       }
