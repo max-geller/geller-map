@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -93,7 +94,11 @@ import { DatePipe } from '@angular/common';
               </mat-card-header>
               <mat-card-content>
                 <div class="map-preview">
-                  <mat-icon>account_tree</mat-icon>
+                  @if (map.previewSvg) {
+                    <div class="preview-svg" [innerHTML]="sanitize(map.previewSvg)"></div>
+                  } @else {
+                    <mat-icon>account_tree</mat-icon>
+                  }
                 </div>
               </mat-card-content>
               <mat-card-actions>
@@ -212,13 +217,14 @@ import { DatePipe } from '@angular/common';
     }
 
     .map-preview {
-      height: 100px;
+      height: 120px;
       display: flex;
       align-items: center;
       justify-content: center;
       background: var(--canvas-bg);
       border-radius: 8px;
       margin-top: 16px;
+      overflow: hidden;
 
       mat-icon {
         font-size: 48px;
@@ -226,6 +232,20 @@ import { DatePipe } from '@angular/common';
         height: 48px;
         color: var(--connection-color);
       }
+    }
+
+    .preview-svg {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-svg ::ng-deep svg {
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
     }
 
     .empty-state {
@@ -259,10 +279,23 @@ export class DashboardComponent {
   readonly authService = inject(AuthService);
   readonly mindMapService = inject(MindMapService);
   private router = inject(Router);
+  private sanitizer = inject(DomSanitizer);
 
   showCreateDialog = false;
   newMapName = '';
   selectedMap: MindMap | null = null;
+
+  // Cache for sanitized SVGs to avoid re-sanitizing on every change detection
+  private sanitizedCache = new Map<string, SafeHtml>();
+
+  sanitize(svg: string): SafeHtml {
+    let cached = this.sanitizedCache.get(svg);
+    if (!cached) {
+      cached = this.sanitizer.bypassSecurityTrustHtml(svg);
+      this.sanitizedCache.set(svg, cached);
+    }
+    return cached;
+  }
 
   async createMap(): Promise<void> {
     const user = this.authService.currentUser();

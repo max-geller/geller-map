@@ -10,6 +10,7 @@ export interface MindMap {
   description?: string;
   rootNodeId: string;
   settings: MindMapSettings;
+  previewSvg?: string; // Cached SVG string for dashboard preview
   createdAt: Date;
   updatedAt: Date;
 }

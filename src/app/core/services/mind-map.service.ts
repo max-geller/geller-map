@@ -264,4 +264,32 @@ export class MindMapService {
       )
     );
   }
+
+  /**
+   * Save only the specified dirty nodes (incremental save)
+   */
+  async saveNodes(nodes: MindMapNode[]): Promise<void> {
+    if (nodes.length === 0) return;
+
+    const now = new Date();
+    await Promise.all(
+      nodes.map((node) =>
+        this.db.setDocument('mindmapNodes', node.id, {
+          ...node,
+          updatedAt: now,
+        })
+      )
+    );
+  }
+
+  /**
+   * Delete nodes by their IDs
+   */
+  async deleteNodesByIds(nodeIds: string[]): Promise<void> {
+    if (nodeIds.length === 0) return;
+
+    await Promise.all(
+      nodeIds.map((id) => this.db.deleteDocument('mindmapNodes', id))
+    );
+  }
 }

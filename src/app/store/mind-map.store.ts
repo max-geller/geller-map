@@ -36,6 +36,11 @@ export class MindMapStore {
   // Private state signals
   private _state = signal<MindMapState>(INITIAL_STATE);
 
+  // Dirty tracking - tracks which nodes have been modified since last save
+  private _dirtyNodeIds = signal<Set<string>>(new Set());
+  private _deletedNodeIds = signal<Set<string>>(new Set());
+  private _mapDirty = signal(false);
+
   // Public readonly signals
   readonly state = this._state.asReadonly();
   readonly currentMap = computed(() => this._state().currentMap);
@@ -44,6 +49,14 @@ export class MindMapStore {
   readonly editingNodeId = computed(() => this._state().editingNodeId);
   readonly view = computed(() => this._state().view);
   readonly history = computed(() => this._state().history);
+
+  // Dirty state signals (public for auto-save service)
+  readonly dirtyNodeIds = this._dirtyNodeIds.asReadonly();
+  readonly deletedNodeIds = this._deletedNodeIds.asReadonly();
+  readonly mapDirty = this._mapDirty.asReadonly();
+  readonly hasPendingChanges = computed(() => 
+    this._dirtyNodeIds().size > 0 || this._deletedNodeIds().size > 0 || this._mapDirty()
+  );
 
   // Derived signals
   readonly nodesArray = computed(() => Object.values(this._state().nodes));
@@ -124,6 +137,9 @@ export class MindMapStore {
       history: { past: [], future: [] },
       view: DEFAULT_VIEW,
     }));
+
+    // Clear dirty state on load
+    this.clearDirtyState();
   }
 
   /**
@@ -131,6 +147,71 @@ export class MindMapStore {
    */
   clearMap(): void {
     this._state.set(INITIAL_STATE);
+    this.clearDirtyState();
+  }
+
+  // =========== Dirty State Management ===========
+
+  /**
+   * Mark a node as dirty (modified)
+   */
+  private markNodeDirty(nodeId: string): void {
+    this._dirtyNodeIds.update((set) => new Set(set).add(nodeId));
+  }
+
+  /**
+   * Mark multiple nodes as dirty
+   */
+  private markNodesDirty(nodeIds: string[]): void {
+    this._dirtyNodeIds.update((set) => {
+      const newSet = new Set(set);
+      nodeIds.forEach((id) => newSet.add(id));
+      return newSet;
+    });
+  }
+
+  /**
+   * Mark a node as deleted
+   */
+  private markNodeDeleted(nodeId: string): void {
+    this._deletedNodeIds.update((set) => new Set(set).add(nodeId));
+    // Remove from dirty if it was there
+    this._dirtyNodeIds.update((set) => {
+      const newSet = new Set(set);
+      newSet.delete(nodeId);
+      return newSet;
+    });
+  }
+
+  /**
+   * Mark the map itself as dirty (for preview updates)
+   */
+  markMapDirty(): void {
+    this._mapDirty.set(true);
+  }
+
+  /**
+   * Clear all dirty state after a successful save
+   */
+  clearDirtyState(): void {
+    this._dirtyNodeIds.set(new Set());
+    this._deletedNodeIds.set(new Set());
+    this._mapDirty.set(false);
+  }
+
+  /**
+   * Get the nodes that need to be saved
+   */
+  getDirtyNodes(): MindMapNode[] {
+    const nodes = this._state().nodes;
+    return Array.from(this._dirtyNodeIds()).map((id) => nodes[id]).filter(Boolean);
+  }
+
+  /**
+   * Get the IDs of deleted nodes
+   */
+  getDeletedNodeIds(): string[] {
+    return Array.from(this._deletedNodeIds());
   }
 
   /**
@@ -195,6 +276,13 @@ export class MindMapStore {
         selectedNodeId: node.id,
       };
     });
+
+    // Mark as dirty for auto-save
+    this.markNodeDirty(node.id);
+    if (node.parentId) {
+      this.markNodeDirty(node.parentId); // Parent's childrenIds changed
+    }
+    this.markMapDirty(); // Preview needs update
   }
 
   /**
@@ -204,16 +292,17 @@ export class MindMapStore {
     const node = this._state().nodes[nodeId];
     if (!node || !node.parentId) return; // Cannot delete root node
 
-    this._state.update((state) => {
-      const nodesToDelete = this.getDescendantIds(nodeId, state.nodes);
-      nodesToDelete.push(nodeId);
+    const nodesToDelete = this.getDescendantIds(nodeId, this._state().nodes);
+    nodesToDelete.push(nodeId);
+    const parentId = node.parentId;
 
+    this._state.update((state) => {
       const newNodes = { ...state.nodes };
 
       // Remove from parent's childrenIds
-      if (node.parentId && newNodes[node.parentId]) {
-        const parent = newNodes[node.parentId];
-        newNodes[node.parentId] = {
+      if (parentId && newNodes[parentId]) {
+        const parent = newNodes[parentId];
+        newNodes[parentId] = {
           ...parent,
           childrenIds: parent.childrenIds.filter((id) => id !== nodeId),
         };
@@ -236,9 +325,16 @@ export class MindMapStore {
         ...state,
         nodes: newNodes,
         history: newHistory,
-        selectedNodeId: node.parentId,
+        selectedNodeId: parentId,
       };
     });
+
+    // Mark as dirty for auto-save
+    nodesToDelete.forEach((id) => this.markNodeDeleted(id));
+    if (parentId) {
+      this.markNodeDirty(parentId); // Parent's childrenIds changed
+    }
+    this.markMapDirty(); // Preview needs update
   }
 
   /**
@@ -272,6 +368,13 @@ export class MindMapStore {
         history: newHistory,
       };
     });
+
+    // Mark as dirty for auto-save
+    this.markNodeDirty(nodeId);
+    // If text changed, update preview
+    if (updates.text !== undefined) {
+      this.markMapDirty();
+    }
   }
 
   /**
@@ -347,6 +450,13 @@ export class MindMapStore {
         history: newHistory,
       };
     });
+
+    // Mark as dirty for auto-save
+    this.markNodeDirty(nodeId);
+    if (descendantIds.length > 0) {
+      this.markNodesDirty(descendantIds);
+    }
+    this.markMapDirty(); // Preview needs update
   }
 
   /**

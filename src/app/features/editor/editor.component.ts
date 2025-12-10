@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, effect } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MindMapStore } from '../../store/mind-map.store';
 import { MindMapService } from '../../core/services/mind-map.service';
 import { AuthService } from '../../core/services/auth.service';
+import { AutoSaveService } from '../../core/services/auto-save.service';
 import { CanvasComponent } from '../canvas/canvas.component';
 import { Subscription } from 'rxjs';
 
@@ -31,6 +32,10 @@ import { Subscription } from 'rxjs';
 
         <span class="map-title">{{ store.currentMap()?.name || 'Loading...' }}</span>
 
+        @if (store.hasPendingChanges()) {
+          <span class="save-indicator">●</span>
+        }
+
         <span class="spacer"></span>
 
         <button
@@ -51,8 +56,13 @@ import { Subscription } from 'rxjs';
           <mat-icon>redo</mat-icon>
         </button>
 
-        <button mat-icon-button (click)="saveMap()" matTooltip="Save" [disabled]="isSaving()">
-          <mat-icon>{{ isSaving() ? 'sync' : 'save' }}</mat-icon>
+        <button
+          mat-icon-button
+          (click)="forceSave()"
+          matTooltip="Save Now"
+          [disabled]="!store.hasPendingChanges()"
+        >
+          <mat-icon>save</mat-icon>
         </button>
 
         <button mat-icon-button [matMenuTriggerFor]="moreMenu" matTooltip="More options">
@@ -104,6 +114,18 @@ import { Subscription } from 'rxjs';
       margin-left: 8px;
     }
 
+    .save-indicator {
+      color: var(--selection-color);
+      margin-left: 8px;
+      font-size: 12px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
     .spacer {
       flex: 1;
     }
@@ -140,14 +162,23 @@ export class EditorComponent implements OnInit, OnDestroy {
   readonly store = inject(MindMapStore);
   private mindMapService = inject(MindMapService);
   private authService = inject(AuthService);
+  private autoSave = inject(AutoSaveService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
   isLoading = signal(true);
-  isSaving = signal(false);
   error = signal<string | null>(null);
 
   private subscription: Subscription | null = null;
+
+  constructor() {
+    // Watch for pending changes and trigger auto-save
+    effect(() => {
+      if (this.store.hasPendingChanges()) {
+        this.autoSave.triggerSave();
+      }
+    });
+  }
 
   ngOnInit(): void {
     const mapId = this.route.snapshot.paramMap.get('id');
@@ -159,7 +190,13 @@ export class EditorComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {
+  async ngOnDestroy(): Promise<void> {
+    // Save any pending changes before leaving
+    if (this.autoSave.hasPendingChanges()) {
+      await this.autoSave.saveNow();
+    }
+
+    this.autoSave.disable();
     this.subscription?.unsubscribe();
     this.store.clearMap();
   }
@@ -184,12 +221,15 @@ export class EditorComponent implements OnInit, OnDestroy {
       this.store.loadMap(map, nodes);
       this.isLoading.set(false);
 
-      // Subscribe to real-time updates
+      // Enable auto-save after map is loaded
+      this.autoSave.enable();
+
+      // Subscribe to real-time updates (optional - for multi-user sync)
       this.subscription = this.mindMapService.getNodes(mapId, user.uid).subscribe((updatedNodes) => {
         // Only update if we have nodes (prevents clearing on initial load race)
         if (updatedNodes.length > 0 && !this.isLoading()) {
           // Optionally sync with remote changes
-          // For now, we'll rely on local state and save manually
+          // For now, we'll rely on local state and auto-save
         }
       });
     } catch (err) {
@@ -199,23 +239,15 @@ export class EditorComponent implements OnInit, OnDestroy {
     }
   }
 
-  async saveMap(): Promise<void> {
-    const map = this.store.currentMap();
-    if (!map) return;
-
-    this.isSaving.set(true);
-    try {
-      const nodes = Object.values(this.store.nodes());
-      await this.mindMapService.batchUpdateNodes(nodes);
-      await this.mindMapService.updateMap(map.id, { name: map.name });
-    } catch (err) {
-      console.error('Failed to save map:', err);
-    } finally {
-      this.isSaving.set(false);
-    }
+  async forceSave(): Promise<void> {
+    await this.autoSave.saveNow();
   }
 
-  goBack(): void {
+  async goBack(): Promise<void> {
+    // Save before navigating away
+    if (this.autoSave.hasPendingChanges()) {
+      await this.autoSave.saveNow();
+    }
     this.router.navigate(['/']);
   }
 
