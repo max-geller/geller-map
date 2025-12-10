@@ -24,6 +24,7 @@ import { MindMapStore } from '../../store/mind-map.store';
       class="node-container"
       [style.left.px]="position().x"
       [style.top.px]="position().y"
+      [style.transform]="dragOffset() ? 'translate(' + dragOffset()!.x + 'px, ' + dragOffset()!.y + 'px)' : null"
       cdkDrag
       (cdkDragStarted)="onDragStarted()"
       (cdkDragMoved)="onDragMoved($event)"
@@ -275,6 +276,21 @@ export class NodeComponent {
   readonly nodeColor = computed(() => {
     const style = this.node().style;
     return style?.color || 'var(--node-bg)';
+  });
+
+  /**
+   * Compute drag offset for descendant nodes during parent drag.
+   * Returns the delta to apply as a CSS transform if this node is being dragged along.
+   */
+  readonly dragOffset = computed(() => {
+    const dragging = this.store.draggingState();
+    if (!dragging) return null;
+
+    // Check if this node is a descendant of the dragged node
+    if (dragging.descendantIds.includes(this.node().id)) {
+      return dragging.delta;
+    }
+    return null;
   });
 
   constructor() {
