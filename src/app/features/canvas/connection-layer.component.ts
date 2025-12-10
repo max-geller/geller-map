@@ -356,15 +356,32 @@ export class ConnectionLayerComponent {
   readonly connections = computed(() => {
     const nodes = this.store.nodes();
     const positions = this.store.nodePositions();
+    const dragging = this.store.draggingState();
     const nodesArray = Object.values(nodes);
     const connections: Connection[] = [];
 
     nodesArray.forEach((node) => {
       if (node.parentId) {
-        const parentPos = positions[node.parentId];
-        const childPos = positions[node.id];
+        let parentPos = positions[node.parentId];
+        let childPos = positions[node.id];
 
         if (parentPos && childPos) {
+          // Apply drag delta for live connection updates during drag
+          if (dragging) {
+            if (node.id === dragging.nodeId) {
+              childPos = {
+                x: childPos.x + dragging.delta.x,
+                y: childPos.y + dragging.delta.y,
+              };
+            }
+            if (node.parentId === dragging.nodeId) {
+              parentPos = {
+                x: parentPos.x + dragging.delta.x,
+                y: parentPos.y + dragging.delta.y,
+              };
+            }
+          }
+
           // Use connectionColor if set, otherwise fall back to node color
           const customColor = node.style?.connectionColor || node.style?.color;
           const dashed = node.style?.connectionDashed ?? false;

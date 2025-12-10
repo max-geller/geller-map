@@ -8,7 +8,7 @@ import {
   output,
   viewChild,
 } from '@angular/core';
-import { CdkDrag, CdkDragEnd, CdkDragHandle } from '@angular/cdk/drag-drop';
+import { CdkDrag, CdkDragEnd, CdkDragHandle, CdkDragMove, CdkDragStart } from '@angular/cdk/drag-drop';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -25,6 +25,8 @@ import { MindMapStore } from '../../store/mind-map.store';
       [style.left.px]="position().x"
       [style.top.px]="position().y"
       cdkDrag
+      (cdkDragStarted)="onDragStarted()"
+      (cdkDragMoved)="onDragMoved($event)"
       (cdkDragEnded)="onDragEnded($event)"
     >
       <div
@@ -300,7 +302,23 @@ export class NodeComponent {
     this.nodeDblClick.emit(this.node().id);
   }
 
+  onDragStarted(): void {
+    // Initialize drag state for live connection updates
+    this.store.setDraggingState({ nodeId: this.node().id, delta: { x: 0, y: 0 } });
+  }
+
+  onDragMoved(event: CdkDragMove): void {
+    // Update drag state with current delta for live connection updates
+    this.store.setDraggingState({
+      nodeId: this.node().id,
+      delta: event.distance,
+    });
+  }
+
   onDragEnded(event: CdkDragEnd): void {
+    // Clear drag state first
+    this.store.setDraggingState(null);
+
     const element = event.source.element.nativeElement;
     const transform = element.style.transform;
 

@@ -41,6 +41,10 @@ export class MindMapStore {
   private _deletedNodeIds = signal<Set<string>>(new Set());
   private _mapDirty = signal(false);
 
+  // Drag state for live connection updates during node dragging
+  private _draggingState = signal<{ nodeId: string; delta: Position } | null>(null);
+  readonly draggingState = this._draggingState.asReadonly();
+
   // Public readonly signals
   readonly state = this._state.asReadonly();
   readonly currentMap = computed(() => this._state().currentMap);
@@ -212,6 +216,15 @@ export class MindMapStore {
    */
   getDeletedNodeIds(): string[] {
     return Array.from(this._deletedNodeIds());
+  }
+
+  // =========== Drag State Management ===========
+
+  /**
+   * Set the dragging state for live connection updates
+   */
+  setDraggingState(state: { nodeId: string; delta: Position } | null): void {
+    this._draggingState.set(state);
   }
 
   /**
